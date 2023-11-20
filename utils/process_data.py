@@ -26,7 +26,7 @@ def pytree_convolve(var_tree, eval_basis):
 
     """
 
-    conv_func = lambda x: nmo.utils._CORR_VARIABLE_TRIAL_DUR(x, eval_basis)
+    conv_func = lambda x: nmo.utils._CORR_VARIABLE_TRIAL_DUR(x, eval_basis)[None]
     return jax.tree_map(conv_func, var_tree)
    # return jax.numpy.vstack(jax.tree_util.tree_flatten(conv_tree)[0])
 
@@ -42,39 +42,6 @@ def convert_to_pynapple(time, time_support, data: Optional[NDArray] = None):
     else:
         nap_obj = nap.TsdTensor(time, d=data, time_support=time_support)
     return nap_obj
-
-
-def convolve_predictor_nap(
-    variable_tsd: nap.Tsd,
-    eval_basis: NDArray,
-    filter_type: Literal["causal", "acausal", "anti-causal"] = "causal",
-):
-    """
-    Create a pytree representing the trial structure form pynapple. Convolve & pad, revert to pynapple.
-
-    Parameters
-    ----------
-    variable_tsd
-    eval_basis
-    filter_type
-
-    Returns
-    -------
-
-    """
-    # create convolve pytree using pynapple get
-    var_list = {
-        index:
-            variable_tsd.get(*variable_tsd.time_support.loc[index]).d[:, None]
-        for index in variable_tsd.time_support.index
-    }
-
-    # convolve and pad to original dim using nemos
-    conv_var = pytree_convolve(var_list, eval_basis)
-
-    # revert to pynapple
-    conv_var = convert_to_pynapple(variable_tsd.t, variable_tsd.time_support, conv_var)
-    return conv_var
 
 
 def concatenate_predictor(*predictors):
@@ -214,7 +181,7 @@ class PynappleLoader:
             bin_size=self.bin_size_sec, ep=self.trial_support.loc[trial_ids]
         )
         for unit in range(spike_counts.shape[1]):
-            add_inputs_to_pytree(self.spike_counts_dict, f"spike_counts_{unit}", spike_counts)
+            add_inputs_to_pytree(self.spike_counts_dict, f"spike_counts_{unit}", spike_counts[:, unit])
 
     def create_predictors(self, *predictors_names):
         for name in predictors_names:
@@ -230,6 +197,11 @@ class PynappleLoader:
                     self.add_stimuli()
             self.bin_spikes()
 
+    def get_time(self):
+        trial_ids = self.get_trial_types(*self.filter_trials)
+        return self.spike_times.count(
+            bin_size=self.bin_size_sec, ep=self.trial_support.loc[trial_ids]
+        ).t
 
 class ModelDataHandler:
     def __init__(self, predictor_dict: dict, counts_dict: dict, bin_size_sec=0.0005):
@@ -250,59 +222,13 @@ class ModelDataHandler:
             np.linspace(0, 1, window_size)
         ), filter_type
 
-
-    # def set_basis_acg(self, basis, window_size_ms, basis_kwargs):
-    #     window_size = int(window_size_ms / (1000 * self.bin_size_sec))
-    #     self.eval_basis_acg = basis(**basis_kwargs).evaluate(
-    #         np.linspace(0, 1, window_size)
-    #     )
-    #
-    # def get_trial_key(self, trial_label: str):
-    #     if not type(trial_label) is bytes:
-    #         trial_label = trial_label.encode("utf-8")
-    #     return [
-    #         key for key, value in self.sweap_metadata.items() if value == trial_label
-    #     ]
-    #
-    # def get_trial_types(self, *trial_labels):
-    #     trial_list = []
-    #     for label in trial_labels:
-    #         trial_list += self.get_trial_key(label)
-    #     return np.sort(trial_list)
-    #
-    # def subsample_trials(self, var_dict, *trial_labels):
-    #     trial_list = self.get_trial_types(*trial_labels)
-    #     return [var_dict[trial] for trial in trial_list]
-    #
-    # def scale_stim(self):
-    #     scaled_stimulus = (self.nap_stimulus - self.loc) / self.scale
-    #     return scaled_stimulus
-
     def get_convolved_predictor(self):
-        # spike_counts = self.nap_spike_times.count(
-        #     bin_size=self.bin_size_sec, ep=self.nap_trials.loc[trial_ids]
-        # )
-        # scaled_stim = self.scale_stim().bin_average(
-        #     bin_size=self.bin_size_sec, ep=self.nap_trials.loc[trial_ids]
-        # )
-        # stim = convolve_predictor_nap(
-        #     scaled_stim,
-        #     self.eval_basis_stim,
-        #     filter_type="causal"
-        # )
-        # conv_spk = convolve_predictor_nap(
-        #     spike_counts[:, 0],
-        #     self.eval_basis_acg,
-        #     filter_type="causal",
-        # )
         conv_list = []
         for key in self.eval_basis:
-            window_size = self.eval_basis[key][0].shape[1]
+            window_size = self.eval_basis[key][0].shape[0]
             filter_type = self.eval_basis[key][1]
             conv_tree = pytree_convolve(self.predictor_dict[key], self.eval_basis[key][0])
-            pad_func = lambda x: nmo.utils._pad_dimension(
-                x, 1, window_size, filter_type, constant_values=jax.numpy.nan
-            )
+            pad_func = lambda x: nmo.utils.nan_pad_conv(x, window_size, filter_type)
             conv_list.append(
                 jax.numpy.vstack(
                     jax.tree_util.tree_flatten(jax.tree_util.tree_map(pad_func, conv_tree))[0]
@@ -310,11 +236,4 @@ class ModelDataHandler:
             )
         X, valid = concatenate_predictor(*conv_list)
         y = jax.numpy.vstack(jax.tree_util.tree_flatten(self.counts_dict)[0])
-
-        # X = nap.TsdTensor(
-        #     t=conv_spk.t[valid], d=X[valid], time_support=conv_spk.time_support
-        # )
-        # y = nap.TsdFrame(
-        #     t=conv_spk.t[valid], d=y[valid], time_support=conv_spk.time_support
-        # )
-        return X, y
+        return X, y, valid

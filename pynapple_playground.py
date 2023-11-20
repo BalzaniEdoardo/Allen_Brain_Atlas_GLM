@@ -15,13 +15,13 @@ print(info_recordings.loc[
 ])
 specimen_id = 609492577
 
-# parameters
+# Parameters
 train_trial_labels = "Long Square", "Short Square"
 window_size_acg = 250
 window_size_stim = 200
 dt_sec = 0.0005
 n_basis_acg = 10
-n_basis_stim = 10
+n_basis_stim = 11
 
 
 nap_experiment = process_data.PynappleLoader(specimen_id)
@@ -29,6 +29,9 @@ nap_experiment.set_trial_filter(*train_trial_labels)
 
 # create nested dictionary with predictors, first key: "predictor name". second key: "trial ID"
 nap_experiment.create_predictors("spike_counts_0", "injected_current")
+
+# add the predictors and the count to object that will
+# construct the model design matrix
 data_handler = process_data.ModelDataHandler(
         predictor_dict=nap_experiment.predictor_dict,
         counts_dict=nap_experiment.spike_counts_dict,
@@ -46,61 +49,40 @@ data_handler.set_basis(
         window_size_stim,
         dict(n_basis_funcs=n_basis_stim)
 )
-X, y = data_handler.get_convolved_predictor()
-# nap_experiment.add_convolved_spike_history()
-# nap_experiment.add_stimuli()
-# nap_experiment.bin_spikes()
-
-#proc = process_data.ModelDataHandler(predictor_dict=obj.predictor_dict, counts_dict=obj.spike_counts_dict, bin_size_sec=obj.bin_size_sec)
+X, y, valid = data_handler.get_convolved_predictor()
 
 
+# Model definition
+regularizer_strength = 8 * 10**-11
+solver = nmo.solver.RidgeSolver(
+    "GradientDescent",
+    solver_kwargs={"jit": True},
+    regularizer_strength=regularizer_strength,
+)
+obs_model = nmo.observation_models.PoissonObservations(
+    inverse_link_function=jax.nn.softplus
+)
+model = nmo.glm.GLMRecurrent(solver=solver, observation_model=obs_model)
 
-# # process data: This will download and cache the recordings (it will take a while the first time
-# # you analyze a cell, each file is tens of MB).
-# proc = process_data.TrialHandlerAllenPynapple(specimen_id)
-#
-# print("stimulation type is stored in proc.sweap_metadata:")
-# print(proc.sweap_metadata)
-#
-# proc.set_basis_stim(
-#     nmo.basis.RaisedCosineBasisLog, window_size_stim, dict(n_basis_funcs=n_basis_stim)
-# )
-#
-# proc.set_basis_acg(
-#     nmo.basis.RaisedCosineBasisLog, window_size_acg, dict(n_basis_funcs=n_basis_acg + 1)
-# )
-# # remove the last basis (which is the first in the basis matrix)
-# proc.eval_basis_acg = proc.eval_basis_acg[:, 1:]
+# initialize and fit the model
+init_params = np.zeros((1, n_basis_stim + n_basis_acg)), np.log(np.mean(y, axis=0))
+model.fit(X[valid], y[valid], init_params=init_params)
+rate = model.predict(X[valid])
 
+# convert back to pynapple
+time = nap_experiment.get_time()
+rate_nap = nap.TsdFrame(
+    t=time[valid],
+    d=np.asarray(rate),
+    time_support=nap_experiment.spike_times.time_support
+)
+trig_average = nap.compute_event_trigger_average(
+    nap_experiment.spike_times,
+    rate_nap.loc[0],
+    binsize=0.0005,
+    windowsize=[0., 0.3],
+    ep=rate_nap.time_support,
+)
 
-# # create design matrix by convolving stimulus and spikes with the basis
-# X, y = proc.get_convolved_predictor(*train_trial_labels)
-#
-# # Model definition
-# regularizer_strength = 8 * 10**-11
-# solver = nmo.solver.RidgeSolver(
-#     "GradientDescent",
-#     solver_kwargs={"jit": True},
-#     regularizer_strength=regularizer_strength,
-# )
-# obs_model = nmo.observation_models.PoissonObservations(
-#     inverse_link_function=jax.nn.softplus
-# )
-# model = nmo.glm.GLMRecurrent(solver=solver, observation_model=obs_model)
-#
-# # initialize and fit the model
-# init_params = np.zeros((1, n_basis_stim + n_basis_acg)), np.log(np.mean(y, axis=0))
-# model.fit(X, y, init_params=init_params)
-#
-# # predict the rate
-# rate = nap.TsdFrame(t=y.t, d=np.asarray(model.predict(X)), time_support=y.time_support)
-# trig_average = nap.compute_event_trigger_average(
-#     proc.nap_spike_times,
-#     rate.loc[0],
-#     binsize=0.0005,
-#     windowsize=[0., 0.3],
-#     ep=rate.time_support,
-# )
-#
-# acg_raw = nap.compute_autocorrelogram(proc.nap_spike_times, binsize=0.001, windowsize=1, norm=False)
-# plt.plot(trig_average.t, trig_average.d[trig_average.t>0])
+# spike-triggered rate.
+plt.plot(trig_average.t[trig_average.t > 0], trig_average.d[trig_average.t > 0])
