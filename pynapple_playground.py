@@ -13,6 +13,9 @@ print(info_recordings.loc[
         2172,
         ['line_name', 'specimen__id', 'specimen__name', 'structure__id', 'structure__name', 'structure__acronym']
 ])
+
+
+# select a recording
 specimen_id = 609492577
 
 # Parameters
@@ -23,19 +26,22 @@ dt_sec = 0.0005
 n_basis_acg = 10
 n_basis_stim = 11
 
+# load the experiment (creates pynapple objects)
+experiment = process_data.PynappleLoader(specimen_id)
 
-nap_experiment = process_data.PynappleLoader(specimen_id)
-nap_experiment.set_trial_filter(*train_trial_labels)
+# select some stimulation protocols
+experiment.set_trial_filter(*train_trial_labels)
 
 # create nested dictionary with predictors, first key: "predictor name". second key: "trial ID"
-nap_experiment.create_predictors("spike_counts_0", "injected_current")
+experiment.create_predictors("spike_counts_0", "injected_current")
 
 # add the predictors and the count to object that will
 # construct the model design matrix
-data_handler = process_data.ModelDataHandler(
-        predictor_dict=nap_experiment.predictor_dict,
-        counts_dict=nap_experiment.spike_counts_dict,
-        bin_size_sec=nap_experiment.bin_size_sec
+# the bin size is used to determine the basis window size
+data_handler = process_data.ModelConstructor(
+        predictor_dict=experiment.predictor_dict,
+        counts_dict=experiment.spike_counts_dict,
+        bin_size_sec=experiment.bin_size_sec
 )
 data_handler.set_basis(
         "spike_counts_0",
@@ -70,14 +76,14 @@ model.fit(X[valid], y[valid], init_params=init_params)
 rate = model.predict(X[valid])
 
 # convert back to pynapple
-time = nap_experiment.get_time()
+time = experiment.get_time()
 rate_nap = nap.TsdFrame(
     t=time[valid],
     d=np.asarray(rate),
-    time_support=nap_experiment.spike_times.time_support
+    time_support=experiment.spike_times.time_support
 )
 trig_average = nap.compute_event_trigger_average(
-    nap_experiment.spike_times,
+    experiment.spike_times,
     rate_nap.loc[0],
     binsize=0.0005,
     windowsize=[0., 0.25],

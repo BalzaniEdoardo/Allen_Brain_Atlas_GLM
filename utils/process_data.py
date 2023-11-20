@@ -203,7 +203,9 @@ class PynappleLoader:
             bin_size=self.bin_size_sec, ep=self.trial_support.loc[trial_ids]
         ).t
 
-class ModelDataHandler:
+
+class ModelConstructor:
+
     def __init__(self, predictor_dict: dict, counts_dict: dict, bin_size_sec=0.0005):
 
         self.eval_basis = {}
