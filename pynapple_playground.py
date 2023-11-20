@@ -80,9 +80,20 @@ trig_average = nap.compute_event_trigger_average(
     nap_experiment.spike_times,
     rate_nap.loc[0],
     binsize=0.0005,
-    windowsize=[0., 0.3],
+    windowsize=[0., 0.25],
     ep=rate_nap.time_support,
 )
 
-# spike-triggered rate.
-plt.plot(trig_average.t[trig_average.t > 0], trig_average.d[trig_average.t > 0])
+# spike-triggered rate & auto-corr filter
+plt.figure(figsize=(8, 3))
+plt.subplot(121)
+plt.title("spike triggered average")
+plt.plot(trig_average.t[trig_average.t > 0], trig_average.d[trig_average.t > 0]/dt_sec)
+plt.ylabel("rate [Hz]")
+plt.xlabel("time[sec]")
+plt.subplot(122)
+acg_filter = data_handler.eval_basis["spike_counts_0"][0] @ model.coef_[0,:10]
+plt.plot(dt_sec + np.arange(acg_filter.shape[0]) * dt_sec, acg_filter)
+plt.ylabel("a.u.")
+plt.xlabel("time[sec]")
+plt.tight_layout()
