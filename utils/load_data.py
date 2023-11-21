@@ -72,7 +72,7 @@ def load_to_pynapple(id_recording: int, shift_trials_by_sec=5):
 
     # keep only trials of 8sec dur
     init_trial_time = 0
-    sweap_metadata = {}
+    sweep_metadata = {}
     stim_trials = []
     voltage_trials = []
     spike_times = []
@@ -82,7 +82,7 @@ def load_to_pynapple(id_recording: int, shift_trials_by_sec=5):
     for cc, num in enumerate(sweap_nums):
         # get the data for a specific trial
         dat = data_set.get_sweep(num)
-        sweap_metadata[num] = data_set.get_sweep_metadata(num)["aibs_stimulus_name"]
+        sweep_metadata[num] = data_set.get_sweep_metadata(num)["aibs_stimulus_name"]
 
         time_trials.append(
             np.arange(dat["stimulus"].shape[0]) / dat["sampling_rate"] + init_trial_time
@@ -109,5 +109,5 @@ def load_to_pynapple(id_recording: int, shift_trials_by_sec=5):
         t=voltages.t, d=np.hstack(stim_trials), time_support=trial_interval_set
     )
 
-    return trial_interval_set, stim_trials, voltages, spike_times, sweap_metadata
+    return trial_interval_set, stim_trials, voltages, spike_times, sweep_metadata
 

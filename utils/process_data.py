@@ -2,7 +2,7 @@ from typing import Optional
 
 import jax
 
-import nemos as nmo
+import neurostatslib as nmo
 import numpy as np
 import pynapple as nap
 from numpy.typing import NDArray
@@ -159,7 +159,7 @@ class PynappleLoader:
         Voltage data.
     spike_times : nap.TsGroup
         Spike timing data.
-    sweap_metadata : dict
+    sweep_metadata : dict
         Metadata for data sweeps.
     bin_size_sec : float
         Bin size used for binning spike times.
@@ -180,7 +180,7 @@ class PynappleLoader:
             self.injected_current,
             self.voltages,
             self.spike_times,
-            self.sweap_metadata,
+            self.sweep_metadata,
         ) = load_data.load_to_pynapple(specimen_id)
         self.bin_size_sec = bin_size_sec
         self.predictor_dict = {}
@@ -197,7 +197,7 @@ class PynappleLoader:
     @filter_trials.setter
     def filter_trials(self, trial_groups):
         for label in trial_groups:
-            if label in self.sweap_metadata.keys():
+            if label in self.sweep_metadata.keys():
                 raise NameError(f"`{label}` is not a trial group.")
         self._filter_trials = trial_groups
         print("updating predictors...")
@@ -232,7 +232,7 @@ class PynappleLoader:
         if not type(trial_label) is bytes:
             trial_label = trial_label.encode("utf-8")
         return [
-            key for key, value in self.sweap_metadata.items() if value == trial_label
+            key for key, value in self.sweep_metadata.items() if value == trial_label
         ]
 
     def clear_variables(self):
@@ -427,7 +427,7 @@ class ModelConstructor:
             self.eval_basis[var_name] = basis(**basis_kwargs).evaluate(
                 np.linspace(0, 1, window_size)
             )
-            self.eval_basis[var_name] = self.eval_basis[var_name][:, 1:]
+            self.eval_basis[var_name] = self.eval_basis[var_name][:, :-1]
         else:
             self.eval_basis[var_name] = basis(**basis_kwargs).evaluate(
                 np.linspace(0, 1, window_size)
