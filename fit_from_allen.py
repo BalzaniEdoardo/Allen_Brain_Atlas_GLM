@@ -150,7 +150,7 @@ trig_average = nap.compute_event_trigger_average(
 # spike-triggered rate & auto-corr filter
 plt.figure(figsize=(8, 3))
 plt.subplot(121)
-plt.title("spike triggered average")
+plt.title("auto-correlogram")
 plt.plot(trig_average_raw.t[trig_average_raw.t > 0.0006],
          trig_average_raw.d[trig_average_raw.t > 0.0006]/dt_sec, label="raw")
 plt.plot(trig_average.t[trig_average.t > 0.0006],
