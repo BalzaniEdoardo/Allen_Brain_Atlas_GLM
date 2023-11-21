@@ -20,8 +20,8 @@ specimen_id = 609492577
 
 # Parameters
 train_trial_labels = "Long Square", "Short Square"
-window_size_acg = 250
-window_size_stim = 200
+window_size_acg = 250   # ms
+window_size_stim = 200  # ms
 dt_sec = 0.0005
 n_basis_acg = 10
 n_basis_stim = 11
@@ -33,7 +33,7 @@ experiment = process_data.PynappleLoader(specimen_id)
 experiment.set_trial_filter(*train_trial_labels)
 
 # create nested dictionary with predictors, first key: "predictor name". second key: "trial ID"
-experiment.create_predictors("spike_counts_0", "injected_current")
+experiment.construct_predictors_and_counts_pytree("spike_counts_0", "injected_current")
 
 # add the predictors and the count to object that will
 # construct the model design matrix
