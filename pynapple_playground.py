@@ -20,11 +20,11 @@ specimen_id = 609492577
 
 # Parameters
 train_trial_labels = "Long Square", "Short Square"
-window_size_acg = 250   # ms
+window_size_acg = 150   # ms
 window_size_stim = 200  # ms
 dt_sec = 0.0005
-n_basis_acg = 10
-n_basis_stim = 11
+n_basis_acg = 15
+n_basis_stim = 10
 
 # load the experiment (creates pynapple objects)
 experiment = process_data.PynappleLoader(specimen_id)
@@ -35,28 +35,69 @@ experiment.set_trial_filter(*train_trial_labels)
 # create nested dictionary with predictors, first key: "predictor name". second key: "trial ID"
 experiment.construct_predictors_and_counts_pytree("spike_counts_0", "injected_current")
 
+# Plot the whole recording
+norm_stim = experiment.injected_current.bin_average(bin_size=0.001) / np.max(experiment.injected_current)
+fig, ax = plt.subplots(figsize=(10, 3.5))
+plt.plot(norm_stim, label="stimulus")
+plt.vlines(experiment.spike_times[1].t, 0, 0.2, 'k', label="spikes")
+ylim = plt.ylim()
+for start, end in experiment.spike_times.time_support.values:
+    if start == 0:
+        rect = plt.Rectangle(
+            xy=(start, 0),
+            width=end - start,
+            height=ylim[1],
+            alpha=0.2,
+            facecolor="grey",
+            label="trial"
+        )
+    else:
+        rect = plt.Rectangle(
+            xy=(start, 0),
+            width=end - start,
+            height=ylim[1],
+            alpha=0.2,
+            facecolor="grey"
+        )
+    ax.add_patch(rect)
+plt.xlabel('time [sec]')
+plt.ylabel('a.u.')
+plt.legend()
+
+
+
 # add the predictors and the count to object that will
 # construct the model design matrix
 # the bin size is used to determine the basis window size
-data_handler = process_data.ModelConstructor(
+model_constructor = process_data.ModelConstructor(
         predictor_dict=experiment.predictor_dict,
         counts_dict=experiment.spike_counts_dict,
         bin_size_sec=experiment.bin_size_sec
 )
-data_handler.set_basis(
+model_constructor.set_basis(
         "spike_counts_0",
         nmo.basis.RaisedCosineBasisLog,
         window_size_acg,
         dict(n_basis_funcs=n_basis_acg)
 )
-data_handler.set_basis(
+model_constructor.set_basis(
         "injected_current",
         nmo.basis.RaisedCosineBasisLog,
         window_size_stim,
         dict(n_basis_funcs=n_basis_stim)
 )
-X, y, valid = data_handler.get_convolved_predictor()
+X, y, valid = model_constructor.get_convolved_predictor()
 
+# Plot the convolution output
+time = experiment.get_time()
+conv_out = nap.TsdFrame(t=time, d=X[:, 0], time_support=experiment.trial_support).dropna()
+fig, ax = plt.subplots(figsize=(10, 3.5))
+plt.plot(norm_stim, label="stimulus")
+plt.plot(conv_out[:, :n_basis_acg], color="g")
+plt.vlines(experiment.spike_times[1].t, 0, 1., 'k', label="spikes")
+plt.xlabel('time [sec]')
+plt.ylabel('a.u.')
+plt.legend()
 
 # Model definition
 regularizer_strength = 8 * 10**-11
@@ -98,8 +139,13 @@ plt.plot(trig_average.t[trig_average.t > 0], trig_average.d[trig_average.t > 0]/
 plt.ylabel("rate [Hz]")
 plt.xlabel("time[sec]")
 plt.subplot(122)
-acg_filter = data_handler.eval_basis["spike_counts_0"][0] @ model.coef_[0,:10]
+acg_filter = model_constructor.eval_basis["spike_counts_0"] @ model.coef_[0, :n_basis_acg]
 plt.plot(dt_sec + np.arange(acg_filter.shape[0]) * dt_sec, acg_filter)
 plt.ylabel("a.u.")
 plt.xlabel("time[sec]")
 plt.tight_layout()
+
+# plot rate and spikes
+plt.figure(figsize=(8, 3))
+plt.plot(rate_nap/dt_sec)
+plt.vlines(experiment.spike_times[1].t, 0, 1000, 'k', label="spikes")

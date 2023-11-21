@@ -402,7 +402,7 @@ class ModelConstructor:
         self.eval_basis = {}
         self.filter_type = {}
 
-    def set_basis(self, var_name, basis, window_size_ms, basis_kwargs, filter_type="causal"):
+    def set_basis(self, var_name, basis, window_size_ms, basis_kwargs, filter_type="causal", remove_last=True):
         """
         Sets the evaluation basis for a specified variable.
 
@@ -418,11 +418,20 @@ class ModelConstructor:
             Additional keyword arguments for the basis function.
         filter_type : str, optional
             The type of filter to be used, default is 'causal'.
+        remove_last: bool,
+            Remove the last element of the basis
         """
         window_size = int(window_size_ms / (1000 * self.bin_size_sec))
-        self.eval_basis[var_name] = basis(**basis_kwargs).evaluate(
-            np.linspace(0, 1, window_size)
-        )
+        if remove_last:
+            basis_kwargs["n_basis_funcs"] += 1
+            self.eval_basis[var_name] = basis(**basis_kwargs).evaluate(
+                np.linspace(0, 1, window_size)
+            )
+            self.eval_basis[var_name] = self.eval_basis[var_name][:, 1:]
+        else:
+            self.eval_basis[var_name] = basis(**basis_kwargs).evaluate(
+                np.linspace(0, 1, window_size)
+            )
         self.filter_type[var_name] = filter_type
 
     def get_convolved_predictor(self):
