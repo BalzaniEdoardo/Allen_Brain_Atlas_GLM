@@ -2,7 +2,8 @@ import numpy as np
 
 # normalization constant of a gaussian
 GAUSSIAN_SUM = 2 * 1.753314144021452772415339526931980189073725635759454989253 - 1
-def gaussian(x, std_dev=1):
+
+def gaussian(x, std_dev=1, **kwargs):
     r"""Simple gaussian with mean 0, and adjustable std dev
 
     Possible alternative mother window, giving the weighting in each
@@ -57,11 +58,11 @@ def gaussian(x, std_dev=1):
     return np.exp(-(x**2 / (2 * std_dev**2))) / (std_dev * GAUSSIAN_SUM)
 
 
-def raised_cosine_linear(x, alpha=0.5):
+def raised_cosine_linear(x, alpha=0.5, dx=1., **kwargs):
     basis_func = 0.5 * (
             np.cos(
                 np.clip(
-                    np.pi * (x - 1) / alpha,
+                    np.pi * (x - 1) / (dx * alpha),
                     -np.pi,
                     np.pi,
                 )
@@ -71,20 +72,11 @@ def raised_cosine_linear(x, alpha=0.5):
     return basis_func
 
 
-def raised_cosine_log(x, alpha=0.5):
-    # if equi-spaced samples, this is equivalent to
-    # log_spaced_pts = np.logspace(
-    #   np.log10((self.n_basis_funcs - 1) * np.pi),
-    #   -1,
-    #   sample_pts.shape[0]
-    # ) - 0.1
-    # log_spaced_pts = log_spaced_pts / (np.pi * (self.n_basis_funcs - 1))
-    # base = np.pi * (num_peaks - 1) * 10
-    # log_spaced_pts = base ** (-x) - 1 / base
+def raised_cosine_log(x, alpha=0.5, dx=1., **kwargs):
     basis_funcs = 0.5 * (
             np.cos(
                 np.clip(
-                    np.pi * x / alpha,
+                    np.pi * x / (dx * alpha),
                     -np.pi,
                     np.pi,
                 )
@@ -158,6 +150,7 @@ def check_sampling(val_sampling=.5, pix_sampling=None, func=gaussian, x=np.linsp
         the errors for each interpolation, will have shape ``len(x)``
 
     """
+    dx = x[pix_sampling] - x[0]
     if val_sampling is not None:
         if pix_sampling is not None:
             raise Exception("One of val_sampling or pix_sampling must be None!")
@@ -171,23 +164,23 @@ def check_sampling(val_sampling=.5, pix_sampling=None, func=gaussian, x=np.linsp
             pix_sampling = np.argmin(abs((x-val_sampling)[0] - x))
     if func.__name__ != "raised_cosine_log":
         X = x[:, None] + x[::pix_sampling]
+        sampled = func(X, dx=dx, **func_kwargs)
     else:
         num_peaks = x[::pix_sampling].shape[0]
-        base = np.pi * (num_peaks - 1) * 10
-        log_spaced_pts = base ** (-x) - 1 / base
+        log_spaced_pts = (func_kwargs['base'] ** x - 1) / (func_kwargs['base'] - 1)
         peaks = np.linspace(0, 1, num_peaks)
         X = log_spaced_pts[:,None] - peaks[None]
-
-    sampled = func(X, **func_kwargs)
+        sampled = func(X, dx=dx, **func_kwargs)[::-1, ::-1]
     if func.__name__ != "raised_cosine_log":
         full_X = x[:, None] + x
+        full = func(full_X, dx=dx, **func_kwargs)
     else:
         num_peaks = x.shape[0]
-        base = np.pi * (num_peaks - 1) * 10
-        log_spaced_pts = base ** (-x) - 1 / base
+        log_spaced_pts = (func_kwargs['base'] ** x - 1) / (func_kwargs['base'] - 1)
+
         peaks = np.linspace(0, 1, num_peaks)
         full_X = log_spaced_pts[:, None] - peaks[None]
-    full = func(full_X, **func_kwargs)
+        full = func(full_X, dx=dx, **func_kwargs)[::-1, ::-1]
     coeffs, residuals, rank, s = np.linalg.lstsq(sampled, full, rcond=None)
     interpolated = np.matmul(sampled, coeffs)
     return sampled, full, interpolated, coeffs.T, residuals
