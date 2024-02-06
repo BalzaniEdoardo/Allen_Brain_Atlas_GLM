@@ -1,6 +1,6 @@
 import jax
 import matplotlib.pylab as plt
-import neurostatslib as nmo
+import nemos as nmo
 import numpy as np
 import pandas as pd
 import pynapple as nap

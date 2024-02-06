@@ -1,0 +1,8 @@
+pynapple
+pandas
+h5py
+pynwb
+jax
+scikit-learn
+pip
+git+https://github.com/flatironinstitute/nemos.git@pytree_convolve#egg=nemos

@@ -2,7 +2,7 @@ from typing import Optional
 
 import jax
 
-import neurostatslib as nmo
+import nemos as nmo
 import numpy as np
 import pynapple as nap
 from numpy.typing import NDArray
