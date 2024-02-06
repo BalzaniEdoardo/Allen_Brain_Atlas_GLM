@@ -174,14 +174,25 @@ class PynappleLoader:
     scale : float
         Scale parameter for data normalization.
     """
-    def __init__(self, specimen_id, bin_size_sec=0.0005, loc=0., scale=1.):
-        (
-            self.trial_support,
-            self.injected_current,
-            self.voltages,
-            self.spike_times,
-            self.sweep_metadata,
-        ) = load_data.load_to_pynapple(specimen_id)
+    def __init__(self, specimen_id, bin_size_sec=0.0005,
+                 base_path="cell_types/specimen_%d/ephys.nwb"):
+        try:
+            (
+                self.trial_support,
+                self.injected_current,
+                self.voltages,
+                self.spike_times,
+                self.sweep_metadata,
+            ) = load_data.load_to_pynapple(specimen_id)
+        except Exception:
+            print(f"Try loading from local folder: {base_path%specimen_id}")
+            (
+                self.trial_support,
+                self.injected_current,
+                self.voltages,
+                self.spike_times,
+                self.sweep_metadata,
+            ) = load_data.load_to_pynapple_without_sdk(base_path % specimen_id)
         self.bin_size_sec = bin_size_sec
         self.predictor_dict = {}
         self.spike_counts_dict = {}

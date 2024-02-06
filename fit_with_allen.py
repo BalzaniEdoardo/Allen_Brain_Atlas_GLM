@@ -164,4 +164,3 @@ plt.plot(dt_sec + np.arange(acg_filter.shape[0]) * dt_sec, acg_filter)
 plt.ylabel("a.u.")
 plt.xlabel("time[sec]")
 plt.tight_layout()
-
