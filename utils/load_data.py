@@ -27,7 +27,7 @@ def load_from_sdk(id_recording: int, dt_sec=0.0005):
     stim_trials = {}
     volt_trials = {}
     spike_counts = {}
-    sweap_metadata = {}
+    sweep_metadata = {}
     time_trials = {}
     spike_times = {}
 
@@ -37,7 +37,15 @@ def load_from_sdk(id_recording: int, dt_sec=0.0005):
         # get the data for a specific trial
         dat = data_set.get_sweep(num)
 
-        sweap_metadata[num] = data_set.get_sweep_metadata(num)["aibs_stimulus_name"]
+        sweep_metadata[num] = data_set.get_sweep_metadata(num)#["aibs_stimulus_name"]
+
+        sweep_metadata[num].update(
+            {
+                "stimulus_unit": dat["stimulus_unit"],
+                "sampling_rate": dat["sampling_rate"],
+                "response_unit": "Volt"
+            }
+        )
 
         # get the time for each sample
         time_samp = np.arange(dat["stimulus"].shape[0]) / dat["sampling_rate"]
@@ -62,7 +70,7 @@ def load_from_sdk(id_recording: int, dt_sec=0.0005):
         stim_trials,
         volt_trials,
         spike_counts,
-        sweap_metadata,
+        sweep_metadata,
         spike_times,
     )
 
@@ -89,7 +97,7 @@ def load_to_pynapple(id_recording: int, shift_trials_by_sec=5):
     for cc, num in enumerate(sweap_nums):
         # get the data for a specific trial
         dat = data_set.get_sweep(num)
-        sweep_metadata[num] = data_set.get_sweep_metadata(num)["aibs_stimulus_name"]
+        sweep_metadata[num] = data_set.get_sweep_metadata(num)#["aibs_stimulus_name"]
 
         time_trials.append(
             np.arange(dat["stimulus"].shape[0]) / dat["sampling_rate"] + init_trial_time

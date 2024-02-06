@@ -231,9 +231,11 @@ class PynappleLoader:
 
         if not type(trial_label) is bytes:
             trial_label = trial_label.encode("utf-8")
-        return [
-            key for key, value in self.sweep_metadata.items() if value == trial_label
-        ]
+        trial_keys = []
+        for key, value in self.sweep_metadata.items():
+            if value["aibs_stimulus_name"].decode() == trial_label.decode():
+                trial_keys.append(key)
+        return trial_keys
 
     def clear_variables(self):
         """
@@ -465,7 +467,7 @@ class ModelConstructor:
             conv_tree = pytree_convolve(self.predictor_dict[key], self.eval_basis[key])
 
             # pad to match original size
-            pad_func = lambda x: nmo.utils.nan_pad_conv(x, window_size, filter_type)
+            pad_func = lambda x: nmo.utils.nan_pad_conv(x, window_size, filter_type)[0]
 
             # flatten the tree then stack over the time axis
             conv_list.append(

@@ -42,7 +42,7 @@ experiment.construct_predictors_and_counts_pytree("spike_counts_0", "injected_cu
 norm_stim = experiment.injected_current.bin_average(bin_size=0.001) / np.max(experiment.injected_current)
 fig, ax = plt.subplots(figsize=(10, 3.5))
 plt.plot(norm_stim, label="stimulus")
-plt.vlines(experiment.spike_times[1].t, 0, 0.2, 'k', label="spikes")
+plt.vlines(experiment.spike_times[0].t, 0, 0.2, 'k', label="spikes")
 ylim = plt.ylim()
 for start, end in experiment.spike_times.time_support.values:
     if start == 0:
@@ -79,13 +79,13 @@ model_constructor.set_basis(
         "spike_counts_0",
         nmo.basis.RaisedCosineBasisLog,
         window_size_acg,
-        dict(n_basis_funcs=n_basis_acg, alpha=2.5, clip_first=False)
+        dict(n_basis_funcs=n_basis_acg, width=2.5)
 )
 model_constructor.set_basis(
         "injected_current",
         nmo.basis.RaisedCosineBasisLog,
         window_size_stim,
-        dict(n_basis_funcs=n_basis_stim, alpha=2.5, clip_first=False)
+        dict(n_basis_funcs=n_basis_stim, width=2.5)
 )
 
 
@@ -97,22 +97,22 @@ conv_out = nap.TsdFrame(t=time, d=X[:, 0], time_support=experiment.trial_support
 fig, ax = plt.subplots(figsize=(10, 3.5))
 plt.plot(norm_stim, label="stimulus")
 plt.plot(conv_out[:, :5])
-plt.vlines(experiment.spike_times[1].t, 0, 1., 'k', label="spikes")
+plt.vlines(experiment.spike_times[0].t, 0, 1., 'k', label="spikes")
 plt.xlabel('time [sec]')
 plt.ylabel('a.u.')
 plt.legend()
 
 # Model definition
 regularizer_strength = 8 * 10**-11
-solver = nmo.solver.RidgeSolver(
+regularizer = nmo.regularizer.Ridge(
     "GradientDescent",
     solver_kwargs={"jit": True},
     regularizer_strength=regularizer_strength,
 )
-obs_model = nmo.noise_model.PoissonNoiseModel(
+obs_model = nmo.observation_models.PoissonObservations(
     inverse_link_function=jax.nn.softplus
 )
-model = nmo.glm.GLMRecurrent(solver=solver, noise_model=obs_model)
+model = nmo.glm.GLMRecurrent(regularizer=regularizer, observation_model=obs_model)
 
 # initialize and fit the model
 init_params = np.zeros((1, n_basis_stim + n_basis_acg)), np.log(np.mean(y, axis=0))
@@ -130,9 +130,9 @@ rate_nap = nap.TsdFrame(
 
 trig_average_raw = nap.compute_event_trigger_average(
     experiment.spike_times,
-    experiment.spike_times[1].count(bin_size=0.0005),
+    experiment.spike_times[0].count(bin_size=0.0005),
     binsize=0.0005,
-    windowsize=[0., 0.25],
+    windowsize=(0., 0.25),
     ep=rate_nap.time_support,
 )
 
@@ -140,7 +140,7 @@ trig_average = nap.compute_event_trigger_average(
     experiment.spike_times,
     rate_nap.loc[0],
     binsize=0.0005,
-    windowsize=[0.001, 0.25],
+    windowsize=(0.001, 0.25),
     ep=rate_nap.time_support,
 )
 
@@ -159,7 +159,7 @@ plt.ylabel("rate [Hz]")
 plt.xlabel("time[sec]")
 plt.legend()
 plt.subplot(122)
-acg_filter = model_constructor.eval_basis["spike_counts_0"] @ model.basis_coeff_[0, :n_basis_acg]
+acg_filter = model_constructor.eval_basis["spike_counts_0"] @ model.coef_[0, :n_basis_acg]
 plt.plot(dt_sec + np.arange(acg_filter.shape[0]) * dt_sec, acg_filter)
 plt.ylabel("a.u.")
 plt.xlabel("time[sec]")
